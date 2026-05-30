@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>S Attendance · Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #070e24;
+      --surface: rgba(255,255,255,0.07);
+      --border:  rgba(255,255,255,0.11);
+      --text:    #e8f0ff;
+      --muted:   #8fa0c4;
+      --accent:  #3fc1c9;
+      --green:   #6dd28f;
+      --red:     #ff6b6b;
+      --yellow:  #ffd166;
+      --shadow:  0 20px 50px rgba(0,0,0,0.35);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Sora", system-ui, sans-serif;
+      background: radial-gradient(ellipse at 20% 10%, rgba(63,193,201,0.18) 0%, transparent 45%),
+                  radial-gradient(ellipse at 80% 90%, rgba(50,95,255,0.15) 0%, transparent 45%),
+                  linear-gradient(160deg, #0d1b40 0%, #070e24 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Login screen ── */
+    #login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .login-card {
+      width: min(420px, 100%);
+      background: rgba(8,18,48,0.9);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 40px 36px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      animation: fadeUp .45s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(22px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .login-logo {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 32px;
+    }
+
+    .logo-badge {
+      width: 56px; height: 56px; border-radius: 18px; flex-shrink: 0;
+      background: linear-gradient(145deg, rgba(63,193,201,.32), rgba(255,255,255,.1));
+      border: 1px solid rgba(255,255,255,.16);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; font-weight: 800;
+    }
+
+    .login-title   { font-size: 1.3rem; font-weight: 800; }
+    .login-sub     { font-size: .82rem; color: var(--muted); margin-top: 3px; }
+
+    .field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 18px; }
+    .field label { font-size: .88rem; font-weight: 600; color: var(--muted); }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 13px 16px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 14px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: .95rem;
+      transition: border-color .2s;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+
+    .btn-primary {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, var(--accent), #2c9ea1);
+      border: none; border-radius: 14px; color: white;
+      font-family: inherit; font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: transform .2s, box-shadow .2s;
+      box-shadow: 0 8px 22px rgba(63,193,201,.28);
+    }
+    .btn-primary:hover    { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(63,193,201,.38); }
+    .btn-primary:disabled { opacity: .55; transform: none; cursor: not-allowed; }
+
+    .login-error {
+      margin-top: 14px; padding: 11px 15px;
+      background: rgba(255,107,107,.12); border: 1px solid rgba(255,107,107,.3);
+      border-radius: 11px; color: var(--red); font-size: .86rem; font-weight: 600;
+      text-align: center;
+    }
+
+    /* ── Dashboard ── */
+    #dashboard { display: none; padding: 28px 20px 48px; max-width: 1200px; margin: 0 auto; }
+
+    /* Top bar */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 14px;
+      padding: 18px 26px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 22px; margin-bottom: 26px;
+      box-shadow: var(--shadow);
+    }
+
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+
+    .topbar h1 {
+      font-size: clamp(1.1rem, 2.5vw, 1.55rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff, var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .topbar-sub { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+
+    .btn-sm {
+      padding: 9px 16px; border: none; border-radius: 10px;
+      font-family: inherit; font-size: .84rem; font-weight: 700;
+      cursor: pointer; transition: opacity .2s, transform .15s;
+    }
+    .btn-sm:hover { transform: translateY(-1px); }
+
+    .btn-refresh { background: rgba(63,193,201,.18); color: var(--accent); border: 1px solid rgba(63,193,201,.3); }
+    .btn-logout  { background: rgba(255,107,107,.15); color: var(--red);    border: 1px solid rgba(255,107,107,.3); }
+
+    /* Stat cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px; margin-bottom: 26px;
+    }
+
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 22px 24px;
+      box-shadow: var(--shadow);
+      animation: fadeUp .4s ease both;
+    }
+
+    .stat-icon  { font-size: 1.6rem; margin-bottom: 10px; }
+    .stat-label { font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .stat-value { font-size: 2.4rem; font-weight: 800; line-height: 1.1; margin-top: 4px; }
+    .stat-value.accent { color: var(--accent); }
+    .stat-value.green  { color: var(--green); }
+    .stat-value.yellow { color: var(--yellow); }
+
+    .stat-sub   { font-size: .78rem; color: var(--muted); margin-top: 6px; }
+
+    /* Users table */
+    .section-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 22px; padding: 22px;
+      box-shadow: var(--shadow);
+      animation: fadeUp .5s ease both;
+    }
+
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
+    }
+
+    .section-header h2 { font-size: 1.1rem; font-weight: 700; }
+
+    .pill-tag {
+      background: rgba(63,193,201,.15); color: var(--accent);
+      border: 1px solid rgba(63,193,201,.28); border-radius: 999px;
+      padding: 4px 13px; font-size: .8rem; font-weight: 700;
+    }
+
+    .search-bar {
+      width: 100%; padding: 11px 16px;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.13);
+      border-radius: 12px; color: var(--text);
+      font-family: inherit; font-size: .9rem;
+      margin-bottom: 16px; transition: border-color .2s;
+    }
+    .search-bar:focus { outline: none; border-color: var(--accent); }
+
+    .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--border); }
+
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    thead { background: rgba(255,255,255,.05); }
+    th { padding: 12px 16px; text-align: left; font-size: .78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    td { padding: 13px 16px; font-size: .88rem; border-top: 1px solid rgba(255,255,255,.06); }
+    tbody tr { transition: background .15s; }
+    tbody tr:hover { background: rgba(255,255,255,.04); }
+
+    .badge-company {
+      display: inline-block;
+      background: rgba(63,193,201,.14); color: var(--accent);
+      border: 1px solid rgba(63,193,201,.25); border-radius: 8px;
+      padding: 3px 10px; font-size: .82rem; font-weight: 700;
+      max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .num-badge {
+      display: inline-block;
+      background: rgba(255,255,255,.08); border-radius: 8px;
+      padding: 3px 10px; font-size: .82rem; font-weight: 700;
+      min-width: 36px; text-align: center;
+    }
+
+    .btn-delete {
+      background: rgba(255,107,107,.14); color: var(--red);
+      border: 1px solid rgba(255,107,107,.28); border-radius: 9px;
+      padding: 6px 13px; font-size: .8rem; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      transition: background .15s, transform .15s;
+    }
+    .btn-delete:hover { background: rgba(255,107,107,.28); transform: scale(1.04); }
+
+    /* Empty / loading states */
+    .state-msg {
+      text-align: center; padding: 40px 20px;
+      color: var(--muted); font-size: .92rem;
+    }
+
+    /* Newest user highlight */
+    .newest-banner {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(109,210,143,.1); border: 1px solid rgba(109,210,143,.25);
+      border-radius: 14px; padding: 13px 18px;
+      font-size: .86rem; margin-bottom: 24px;
+    }
+    .newest-banner .icon { font-size: 1.2rem; }
+    .newest-banner strong { color: var(--green); }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 26px; left: 50%;
+      transform: translateX(-50%) translateY(0);
+      background: rgba(8,18,48,.97); border: 1px solid var(--border);
+      border-radius: 13px; padding: 12px 22px;
+      font-size: .9rem; font-weight: 600; color: var(--text);
+      box-shadow: 0 10px 28px rgba(0,0,0,.4);
+      z-index: 9000; transition: opacity .3s, transform .3s; white-space: nowrap;
+    }
+    #toast.success { border-color: rgba(109,210,143,.45); color: var(--green); }
+    #toast.error   { border-color: rgba(255,107,107,.45); color: var(--red); }
+    #toast.hidden  { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(12px); }
+
+    @media (max-width: 600px) {
+      .login-card { padding: 28px 20px; }
+      #dashboard  { padding: 16px 12px 36px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── LOGIN ── -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-badge">S</div>
+        <div>
+          <div class="login-title">Owner Dashboard</div>
+          <div class="login-sub">S Advanced Attendance · Admin Access</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>API Base URL</label>
+        <input id="api-url" type="text" value="https://s-advanced-attendance-system.up.railway.app" />
+      </div>
+
+      <div class="field">
+        <label>Superadmin Secret</label>
+        <input id="admin-secret" type="password" placeholder="Your SUPERADMIN_SECRET" />
+      </div>
+
+      <button class="btn-primary" id="btn-login" onclick="adminLogin()">Access Dashboard</button>
+      <div id="login-error" class="login-error" style="display:none"></div>
+    </div>
+  </div>
+
+
+  <!-- ── DASHBOARD ── -->
+  <div id="dashboard">
+
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="logo-badge" style="width:46px;height:46px;font-size:1.1rem;">S</div>
+        <div>
+          <h1>Owner Dashboard</h1>
+          <div class="topbar-sub" id="server-time">Loading…</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn-sm btn-refresh" onclick="loadDashboard()">⟳ Refresh</button>
+        <button class="btn-sm btn-logout"  onclick="adminLogout()">Sign Out</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-label">Total Accounts</div>
+        <div class="stat-value accent" id="stat-users">—</div>
+        <div class="stat-sub">Registered companies / users</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🪪</div>
+        <div class="stat-label">Total Staff Records</div>
+        <div class="stat-value" id="stat-staff">—</div>
+        <div class="stat-sub">Across all accounts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-label">Attendance Entries</div>
+        <div class="stat-value green" id="stat-att">—</div>
+        <div class="stat-sub">All check-ins & check-outs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-label">Today's Check-ins</div>
+        <div class="stat-value yellow" id="stat-today">—</div>
+        <div class="stat-sub">UTC date</div>
+      </div>
+    </div>
+
+    <!-- Newest user -->
+    <div class="newest-banner hidden" id="newest-banner">
+      <span class="icon">🆕</span>
+      <span>Latest signup: <strong id="newest-company">—</strong>
+        &nbsp;·&nbsp; <span id="newest-email" style="color:var(--muted)"></span>
+        &nbsp;·&nbsp; <span id="newest-date"  style="color:var(--muted)"></span>
+      </span>
+    </div>
+
+    <!-- Users table -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2>All Registered Accounts</h2>
+        <span class="pill-tag" id="user-count-tag">0 users</span>
+      </div>
+      <input class="search-bar" id="search" type="text" placeholder="🔍  Search by company, email…" oninput="filterTable()" />
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Company / User</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Staff</th>
+              <th>Attendance</th>
+              <th>Joined</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody">
+            <tr><td colspan="8" class="state-msg">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+    let API   = "";
+    let SECRET = "";
+    let allUsers = [];
+    let toastT = null;
+
+    function showToast(msg, type = "success") {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.className = `toast ${type}`;
+      clearTimeout(toastT);
+      toastT = setTimeout(() => t.classList.add("hidden"), 3200);
+    }
+
+    async function adminFetch(path, opts = {}) {
+      const res  = await fetch(`${API}${path}`, {
+        headers: { "Content-Type": "application/json", "X-Admin-Secret": SECRET },
+        ...opts
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      return data;
+    }
+
+    async function adminLogin() {
+      API    = document.getElementById("api-url").value.trim().replace(/\/$/, "");
+      SECRET = document.getElementById("admin-secret").value;
+      const btn = document.getElementById("btn-login");
+      btn.disabled = true; btn.textContent = "Connecting…";
+      try {
+        await adminFetch("/superadmin/stats");
+        sessionStorage.setItem("adm_api",    API);
+        sessionStorage.setItem("adm_secret", SECRET);
+        document.getElementById("login-screen").style.display = "none";
+        document.getElementById("dashboard").style.display    = "block";
+        loadDashboard();
+      } catch (err) {
+        const el = document.getElementById("login-error");
+        el.textContent = err.message.includes("403") || err.message.includes("Forbidden")
+          ? "Incorrect secret. Check your SUPERADMIN_SECRET."
+          : `Connection failed: ${err.message}`;
+        el.style.display = "block";
+      } finally {
+        btn.disabled = false; btn.textContent = "Access Dashboard";
+      }
+    }
+
+    function adminLogout() {
+      sessionStorage.removeItem("adm_api");
+      sessionStorage.removeItem("adm_secret");
+      document.getElementById("dashboard").style.display    = "none";
+      document.getElementById("login-screen").style.display = "flex";
+      document.getElementById("admin-secret").value = "";
+    }
+
+    async function loadDashboard() {
+      try {
+        const [stats, users] = await Promise.all([
+          adminFetch("/superadmin/stats"),
+          adminFetch("/superadmin/users")
+        ]);
+
+        // Stats
+        document.getElementById("stat-users").textContent = stats.total_users;
+        document.getElementById("stat-staff").textContent = stats.total_staff;
+        document.getElementById("stat-att").textContent   = stats.total_attendance;
+        document.getElementById("stat-today").textContent = stats.today_checkins;
+        document.getElementById("server-time").textContent =
+          "Server UTC: " + new Date(stats.server_time + "Z").toLocaleString();
+
+        // Newest user banner
+        if (stats.newest_user) {
+          document.getElementById("newest-company").textContent = stats.newest_user.company;
+          document.getElementById("newest-email").textContent   = stats.newest_user.email;
+          document.getElementById("newest-date").textContent    =
+            new Date(stats.newest_user.created_at + "Z").toLocaleDateString();
+          document.getElementById("newest-banner").classList.remove("hidden");
+        }
+
+        // Table
+        allUsers = users;
+        document.getElementById("user-count-tag").textContent = `${users.length} user${users.length !== 1 ? "s" : ""}`;
+        renderTable(users);
+
+      } catch (err) {
+        showToast("Failed to load: " + err.message, "error");
+      }
+    }
+
+    function renderTable(users) {
+      const tbody = document.getElementById("users-tbody");
+      if (!users.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="state-msg">No accounts yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = users.map((u, i) => `
+        <tr>
+          <td style="color:var(--muted);font-size:.82rem">${i + 1}</td>
+          <td><span class="badge-company" title="${esc(u.company)}">${esc(u.company)}</span></td>
+          <td style="color:var(--muted)">${esc(u.email)}</td>
+          <td style="color:var(--muted)">${esc(u.phone || "—")}</td>
+          <td><span class="num-badge">${u.staff_count}</span></td>
+          <td><span class="num-badge">${u.attendance_count}</span></td>
+          <td style="color:var(--muted);font-size:.82rem">${fmtDate(u.created_at)}</td>
+          <td>
+            <button class="btn-delete" onclick="deleteUser(${u.id}, '${esc(u.company)}')">
+              🗑 Delete
+            </button>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    function filterTable() {
+      const q = document.getElementById("search").value.toLowerCase();
+      renderTable(allUsers.filter(u =>
+        u.company.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+      ));
+    }
+
+    async function deleteUser(id, company) {
+      if (!confirm(`Delete account "${company}" and ALL their data?\nThis cannot be undone.`)) return;
+      try {
+        await adminFetch(`/superadmin/users/${id}`, { method: "DELETE" });
+        showToast(`"${company}" deleted.`, "success");
+        loadDashboard();
+      } catch (err) {
+        showToast("Delete failed: " + err.message, "error");
+      }
+    }
+
+    function esc(str) {
+      return String(str ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return "—";
+      return new Date(iso + "Z").toLocaleDateString(undefined, { year:"numeric", month:"short", day:"numeric" });
+    }
+
+    // Auto-restore session
+    const savedApi    = sessionStorage.getItem("adm_api");
+    const savedSecret = sessionStorage.getItem("adm_secret");
+    if (savedApi && savedSecret) {
+      API = savedApi; SECRET = savedSecret;
+      document.getElementById("api-url").value = savedApi;
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("dashboard").style.display    = "block";
+      loadDashboard();
+    }
+
+    // Enter key on secret field
+    document.getElementById("admin-secret").addEventListener("keydown", e => {
+      if (e.key === "Enter") adminLogin();
+    });
+  </script>
+</body>
+</html>

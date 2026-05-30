@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>S Advanced Attendance</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════
+       AUTH SCREENS  (shown when not logged in)
+  ════════════════════════════════════════════════ -->
+  <div id="auth-shell" class="auth-shell">
+
+    <!-- Animated background blobs -->
+    <div class="auth-blobs">
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+    </div>
+
+    <div class="auth-card">
+
+      <!-- Logo -->
+      <div class="auth-logo">
+        <span class="badge-lg">S</span>
+        <div>
+          <div class="auth-brand">S Advanced Attendance</div>
+          <div class="auth-tagline">Secure multi-user attendance management</div>
+        </div>
+      </div>
+
+      <!-- Tab switcher -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Sign In</button>
+        <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Create Account</button>
+      </div>
+
+      <!-- ── LOGIN FORM ── -->
+      <div id="form-login" class="auth-form">
+        <div class="field-group">
+          <label>Email Address</label>
+          <input id="login-email"    type="email"    placeholder="you@company.com" autocomplete="email" />
+        </div>
+        <div class="field-group">
+          <label>Password</label>
+          <div class="input-eye">
+            <input id="login-password" type="password" placeholder="Your password" autocomplete="current-password" />
+            <button type="button" class="eye-btn" onclick="toggleEye('login-password', this)">👁</button>
+          </div>
+        </div>
+        <button class="auth-submit" id="btn-login" onclick="handleLogin()">
+          <span>Sign In</span>
+          <div class="btn-spinner hidden" id="login-spinner"></div>
+        </button>
+      </div>
+
+      <!-- ── REGISTER FORM ── -->
+      <div id="form-register" class="auth-form hidden">
+        <div class="field-group">
+          <label>Company / Organisation Name <span class="req">*</span></label>
+          <input id="reg-company"  type="text"     maxlength="80"  placeholder="Acme Corp" />
+        </div>
+        <div class="field-group">
+          <label>Email Address <span class="req">*</span></label>
+          <input id="reg-email"    type="email"                    placeholder="you@company.com" autocomplete="email" />
+        </div>
+        <div class="field-group">
+          <label>Phone Number</label>
+          <input id="reg-phone"    type="tel"      maxlength="30"  placeholder="+234 000 0000" />
+        </div>
+        <div class="field-group">
+          <label>Password <span class="req">*</span></label>
+          <div class="input-eye">
+            <input id="reg-password"  type="password" maxlength="128" placeholder="Min 8 characters" autocomplete="new-password" />
+            <button type="button" class="eye-btn" onclick="toggleEye('reg-password', this)">👁</button>
+          </div>
+          <div class="pw-strength" id="pw-strength"></div>
+        </div>
+        <div class="field-group">
+          <label>Confirm Password <span class="req">*</span></label>
+          <div class="input-eye">
+            <input id="reg-password2" type="password" maxlength="128" placeholder="Repeat password" />
+            <button type="button" class="eye-btn" onclick="toggleEye('reg-password2', this)">👁</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Admin PIN <span class="req">*</span>
+            <span class="field-hint">4–8 digits — required before any changes</span>
+          </label>
+          <input id="reg-pin"      type="password" maxlength="8"   placeholder="e.g. 1234" inputmode="numeric" pattern="\d*" />
+        </div>
+        <button class="auth-submit" id="btn-register" onclick="handleRegister()">
+          <span>Create Account</span>
+          <div class="btn-spinner hidden" id="register-spinner"></div>
+        </button>
+      </div>
+
+      <!-- Auth error/success banner -->
+      <div id="auth-message" class="auth-message hidden"></div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       MAIN APP  (shown after login)
+  ════════════════════════════════════════════════ -->
+  <div id="app-shell" class="app-shell hidden">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <span class="badge">S</span>
+        <div class="header-titles">
+          <h1 id="company-name-display" class="company-headline">Company Name</h1>
+          <p class="app-subtitle">S Advanced Attendance System</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-view-staff" class="pill">⟳ Refresh</button>
+        <button class="pill danger-pill" onclick="handleLogout()">Sign Out</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="grid-two">
+
+        <!-- Staff Management Card -->
+        <article class="card">
+          <h2>Staff Management</h2>
+
+          <div id="update-banner" class="update-mode-banner hidden">
+            <span>✏️ Editing: <strong id="update-banner-id"></strong></span>
+            <button id="btn-cancel-update" type="button">Cancel</button>
+          </div>
+
+          <div id="staff-form" class="form-grid">
+            <label for="staff-name">Name <span style="color:var(--danger)">*</span></label>
+            <input id="staff-name"  type="text"  maxlength="80"  autocomplete="off" placeholder="Full name" />
+
+            <label for="staff-email">Email</label>
+            <input id="staff-email" type="email" maxlength="120" autocomplete="off" placeholder="email@example.com" />
+
+            <label for="staff-phone">Phone</label>
+            <input id="staff-phone" type="tel"   maxlength="30"  autocomplete="off" placeholder="+234 000 0000" />
+
+            <label for="staff-id">Staff ID <span style="color:var(--text-muted); font-size:0.8rem">(auto-generated)</span></label>
+            <input id="staff-id"    type="text"  maxlength="20"  readonly placeholder="Auto" />
+
+            <div class="button-row">
+              <button type="button" id="btn-submit-staff" class="primary">Add Staff</button>
+            </div>
+          </div>
+          <p class="hint">Right-click (PC) or long-press (mobile) a staff row to update, remove, or generate a QR code.</p>
+        </article>
+
+        <!-- Attendance Actions Card -->
+        <article class="card">
+          <h2>Attendance Actions</h2>
+          <div class="form-grid">
+            <label for="attendance-staff">Select Staff</label>
+            <select id="attendance-staff">
+              <option value="">-- select staff --</option>
+            </select>
+          </div>
+          <div class="button-row">
+            <button id="btn-scan-checkin"  class="accent">📷 Scan QR Check-In</button>
+            <button id="btn-scan-checkout" class="accent">📷 Scan QR Check-Out</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid-two">
+
+        <!-- Registered Staff Table -->
+        <article class="card wide-card">
+          <div class="card-header">
+            <h2>Registered Staff</h2>
+            <span id="staff-count" class="tag">0 staff</span>
+          </div>
+          <div class="table-wrap">
+            <table id="staff-table">
+              <thead>
+                <tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="hint">Right-click (PC) or long-press (mobile) a row for actions.</p>
+        </article>
+
+        <!-- Attendance Log -->
+        <article class="card wide-card">
+          <div class="card-header">
+            <h2>Attendance Log</h2>
+            <span id="attendance-count" class="tag">0 entries</span>
+          </div>
+          <div class="table-wrap">
+            <table id="attendance-table">
+              <thead>
+                <tr><th>Date</th><th>Staff</th><th>Action</th><th>Time</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Your data is encrypted and stored securely. All changes require admin PIN verification.</p>
+    </footer>
+  </div>
+
+
+  <!-- ═════════════════════ TOAST ═════════════════════ -->
+  <div id="toast" class="toast hidden"></div>
+
+
+  <!-- ═════════════════════ CONTEXT MENU ═════════════════════ -->
+  <div id="context-menu" class="context-menu hidden" role="menu">
+    <button data-action="update">✏️ Update</button>
+    <button data-action="remove">🗑️ Remove</button>
+    <button data-action="qr">📱 Generate QR</button>
+  </div>
+
+
+  <!-- ═════════════════════ OVERLAY ═════════════════════ -->
+  <div id="modal-overlay" class="modal-overlay hidden"></div>
+
+
+  <!-- ═════════════════════ PIN MODAL ═════════════════════ -->
+  <div id="pin-modal" class="modal pin-modal hidden" role="dialog" aria-modal="true" aria-label="Admin PIN">
+    <div class="modal-header">
+      <h3>🔒 Admin PIN Required</h3>
+      <button class="modal-close" id="btn-close-pin" aria-label="Close">×</button>
+    </div>
+    <p class="pin-desc">Enter your admin PIN to authorise this action.</p>
+    <div class="pin-inputs" id="pin-inputs">
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="\d" />
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="\d" />
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="\d" />
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="\d" />
+    </div>
+    <p class="pin-error hidden" id="pin-error">Incorrect PIN. Try again.</p>
+    <div class="modal-actions">
+      <button class="primary" id="btn-confirm-pin">Confirm</button>
+      <button class="secondary" id="btn-close-pin2">Cancel</button>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════ SCANNER MODAL ═════════════════════ -->
+  <div id="scanner-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="scanner-title">
+    <div class="modal-header">
+      <h3 id="scanner-title">QR Scanner</h3>
+      <button class="modal-close" id="btn-close-scanner" aria-label="Close scanner">×</button>
+    </div>
+    <div id="scanner-container"></div>
+    <div class="modal-actions">
+      <button class="secondary" id="btn-stop-scanner">Stop Scanner</button>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════ QR MODAL ═════════════════════ -->
+  <div id="qr-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="QR Code">
+    <div class="modal-header">
+      <h3>Staff QR Code</h3>
+      <button class="modal-close" id="btn-close-qr" aria-label="Close QR">×</button>
+    </div>
+    <div class="qr-preview" id="qr-preview"></div>
+    <div class="modal-actions">
+      <a id="download-qr" download="staff-qr.png"
+         style="text-decoration:none;border-radius:14px;padding:13px 22px;font-weight:700;
+                background:linear-gradient(135deg,#3fc1c9,#2c9ea1);color:white;display:inline-block;">
+        ⬇ Download QR
+      </a>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
