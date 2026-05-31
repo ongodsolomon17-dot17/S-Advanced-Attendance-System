@@ -599,4 +599,6 @@ if (Auth.isLoggedIn()) {
   showAppShell();
 } else {
   showAuthShell();
+ // Keep Render awake — ping every 4 minutes
+setInterval(() => fetch(`${API_URL}/auth/login`).catch(() => {}), 240000); 
 }
