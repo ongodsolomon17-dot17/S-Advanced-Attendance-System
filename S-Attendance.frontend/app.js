@@ -1,6 +1,6 @@
 "use strict";
 
-const API_URL = "https://s-advanced-attendance-system.onrender.com";
+const API_URL = "https://ongod-advanced-attendance-system.onrender.com";
 // ===== Token Store ==========================================================
 const Auth = {
   get token()   { return sessionStorage.getItem("att_token"); },
