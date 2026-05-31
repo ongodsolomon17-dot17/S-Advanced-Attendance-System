@@ -1,7 +1,6 @@
 "use strict";
 
-const API_URL = "https://s-advanced-attendance-system.up.railway.app";
-
+const API_URL = "https://your-app-name.onrender.com";
 // ===== Token Store ==========================================================
 const Auth = {
   get token()   { return sessionStorage.getItem("att_token"); },
