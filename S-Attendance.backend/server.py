@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, abort
 from flask_cors import CORS
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import re
 import os
 import hashlib
@@ -16,13 +17,19 @@ app = Flask(__name__)
 CORS(app,
      origins=["http://127.0.0.1:5500", "http://localhost:5500",
                "http://127.0.0.1:3000", "http://localhost:3000", "null",
-               "https://*.vercel.app",
-               "https://*.onrender.com"],
+               "https://*.vercel.app", "https://*.onrender.com"],
      methods=["GET", "POST", "PUT", "DELETE"],
      allow_headers=["Content-Type", "Authorization"])
 
-DB_NAME    = os.environ.get("DB_PATH", "attendance.db")
-JWT_SECRET = os.environ.get("JWT_SECRET", "change-me-in-production-use-a-long-random-string")
+# ── DATABASE ────────────────────────────────────────────────────────────────
+# LINE 24 — Replace YOUR-PASSWORD-HERE with your actual Supabase password
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://postgres:#blueysplash001@db.axqlgpdincfxbiagzjws.supabase.co:5432/postgres"
+)
+
+JWT_SECRET        = os.environ.get("JWT_SECRET",        "change-me-in-production-use-a-long-random-string")
+SUPERADMIN_SECRET = os.environ.get("SUPERADMIN_SECRET", "change-this-superadmin-secret")
 
 # ── Input constraints ──────────────────────────────────────────────────────
 MAX_NAME_LEN     = 80
@@ -36,7 +43,7 @@ VALID_ACTIONS    = {"check_in", "check_out"}
 STAFF_ID_RE      = re.compile(r'^[A-Za-z0-9_\-]+$')
 
 
-# ===== Simple JWT (no external library) ====================================
+# ===== Simple JWT ===========================================================
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
@@ -50,7 +57,7 @@ def create_token(user_id: int, company: str) -> str:
         "sub":     user_id,
         "company": company,
         "iat":     int(time.time()),
-        "exp":     int(time.time()) + 86400 * 7   # 7 days
+        "exp":     int(time.time()) + 86400 * 7
     }).encode())
     sig = _b64url(hmac.new(
         JWT_SECRET.encode(), f"{header}.{payload}".encode(), hashlib.sha256
@@ -79,7 +86,7 @@ def get_current_user() -> dict:
     return verify_token(auth[7:])
 
 
-# ===== Password hashing (PBKDF2-HMAC-SHA256) ================================
+# ===== Password hashing =====================================================
 def hash_password(password: str, salt=None) -> str:
     if salt is None:
         salt = base64.urlsafe_b64encode(os.urandom(16)).decode()
@@ -91,15 +98,17 @@ def check_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(hash_password(password, salt), stored)
 
 
-# ===== Database Setup =======================================================
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
+# ===== Database =============================================================
+def get_db():
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    return conn
 
-    # Users table
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         SERIAL PRIMARY KEY,
             company    TEXT    NOT NULL,
             email      TEXT    NOT NULL UNIQUE,
             phone      TEXT,
@@ -108,8 +117,6 @@ def init_db():
             created_at TEXT    NOT NULL
         )
     """)
-
-    # Staff table — scoped to a user account
     c.execute("""
         CREATE TABLE IF NOT EXISTS staff (
             id      TEXT    NOT NULL,
@@ -121,19 +128,16 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
-
-    # Attendance table — scoped to a user account
     c.execute("""
         CREATE TABLE IF NOT EXISTS attendance (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            id        SERIAL PRIMARY KEY,
             user_id   INTEGER NOT NULL,
             staff_id  TEXT    NOT NULL,
             action    TEXT    NOT NULL,
             timestamp TEXT    NOT NULL,
-            FOREIGN KEY (user_id)  REFERENCES users(id)
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
-
     conn.commit()
     conn.close()
 
@@ -141,15 +145,6 @@ init_db()
 
 
 # ===== Helpers ==============================================================
-def dict_factory(cursor, row):
-    return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
-
-def get_db():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = dict_factory
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
-
 def require_json():
     data = request.get_json(silent=True)
     if data is None:
@@ -173,32 +168,32 @@ def validate_staff_id(sid):
     return sid
 
 def staff_exists(conn, user_id, staff_id):
-    return conn.execute(
-        "SELECT 1 FROM staff WHERE id=? AND user_id=?", (staff_id, user_id)
-    ).fetchone() is not None
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM staff WHERE id=%s AND user_id=%s", (staff_id, user_id))
+    return c.fetchone() is not None
+
+def require_superadmin():
+    auth = request.headers.get("X-Admin-Secret", "")
+    if not hmac.compare_digest(auth, SUPERADMIN_SECRET):
+        abort(403, description="Forbidden.")
 
 
 # ===== Error handlers =======================================================
 @app.errorhandler(400)
-def bad_request(e):    return jsonify({"error": str(e.description)}), 400
-
+def bad_request(e):  return jsonify({"error": str(e.description)}), 400
 @app.errorhandler(401)
-def unauthorized(e):   return jsonify({"error": str(e.description)}), 401
-
+def unauthorized(e): return jsonify({"error": str(e.description)}), 401
 @app.errorhandler(403)
-def forbidden(e):      return jsonify({"error": str(e.description)}), 403
-
+def forbidden(e):    return jsonify({"error": str(e.description)}), 403
 @app.errorhandler(404)
-def not_found(e):      return jsonify({"error": "Not found."}), 404
-
+def not_found(e):    return jsonify({"error": "Not found."}), 404
 @app.errorhandler(409)
-def conflict(e):       return jsonify({"error": str(e.description)}), 409
-
+def conflict(e):     return jsonify({"error": str(e.description)}), 409
 @app.errorhandler(500)
-def server_error(e):   return jsonify({"error": "Internal server error."}), 500
+def server_error(e): return jsonify({"error": "Internal server error."}), 500
 
 
-# ===== Auth Endpoints =======================================================
+# ===== Auth =================================================================
 @app.route("/auth/register", methods=["POST"])
 def register():
     data     = require_json()
@@ -216,17 +211,18 @@ def register():
 
     conn = get_db()
     try:
-        existing = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
-        if existing:
+        c = conn.cursor()
+        c.execute("SELECT id FROM users WHERE email=%s", (email,))
+        if c.fetchone():
             abort(409, description="An account with this email already exists.")
         pw_hash  = hash_password(password)
         pin_hash = hash_password(pin)
-        conn.execute(
-            "INSERT INTO users (company, email, phone, password, pin, created_at) VALUES (?,?,?,?,?,?)",
+        c.execute(
+            "INSERT INTO users (company, email, phone, password, pin, created_at) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id, company",
             (company, email, phone, pw_hash, pin_hash, datetime.utcnow().isoformat())
         )
+        user = c.fetchone()
         conn.commit()
-        user = conn.execute("SELECT id, company FROM users WHERE email=?", (email,)).fetchone()
     finally:
         conn.close()
 
@@ -244,7 +240,9 @@ def login():
         abort(400, description="'email' and 'password' are required.")
 
     conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+    c    = conn.cursor()
+    c.execute("SELECT * FROM users WHERE email=%s", (email,))
+    user = c.fetchone()
     conn.close()
 
     if not user or not check_password(password, user["password"]):
@@ -256,21 +254,18 @@ def login():
 
 @app.route("/auth/verify-pin", methods=["POST"])
 def verify_pin():
-    """Verify the user's admin PIN before sensitive operations."""
     current = get_current_user()
     data    = require_json()
     pin     = sanitize(data.get("pin"), 10, "pin")
-
     if not pin:
         abort(400, description="'pin' is required.")
-
     conn = get_db()
-    user = conn.execute("SELECT pin FROM users WHERE id=?", (current["sub"],)).fetchone()
+    c    = conn.cursor()
+    c.execute("SELECT pin FROM users WHERE id=%s", (current["sub"],))
+    user = c.fetchone()
     conn.close()
-
     if not user or not check_password(pin, user["pin"]):
         abort(403, description="Incorrect PIN.")
-
     return jsonify({"ok": True})
 
 
@@ -278,26 +273,25 @@ def verify_pin():
 def get_profile():
     current = get_current_user()
     conn    = get_db()
-    user    = conn.execute(
-        "SELECT id, company, email, phone, created_at FROM users WHERE id=?",
-        (current["sub"],)
-    ).fetchone()
+    c       = conn.cursor()
+    c.execute("SELECT id, company, email, phone, created_at FROM users WHERE id=%s", (current["sub"],))
+    user = c.fetchone()
     conn.close()
     if not user:
         abort(404)
-    return jsonify(user)
+    return jsonify(dict(user))
 
 
-# ===== Staff Endpoints (all scoped to authenticated user) ===================
+# ===== Staff ================================================================
 @app.route("/staff", methods=["GET"])
 def list_staff():
     current = get_current_user()
     conn    = get_db()
-    staff   = conn.execute(
-        "SELECT * FROM staff WHERE user_id=? ORDER BY name", (current["sub"],)
-    ).fetchall()
+    c       = conn.cursor()
+    c.execute("SELECT * FROM staff WHERE user_id=%s ORDER BY name", (current["sub"],))
+    staff = c.fetchall()
     conn.close()
-    return jsonify(staff)
+    return jsonify([dict(r) for r in staff])
 
 
 @app.route("/staff", methods=["POST"])
@@ -308,22 +302,20 @@ def add_staff():
     name     = sanitize(data.get("name"),  MAX_NAME_LEN,  "name")
     email    = sanitize(data.get("email"), MAX_EMAIL_LEN, "email")
     phone    = sanitize(data.get("phone"), MAX_PHONE_LEN, "phone")
-
     if not name:
         abort(400, description="'name' is required.")
-
     conn = get_db()
     try:
         if staff_exists(conn, current["sub"], staff_id):
             abort(409, description=f"Staff ID '{staff_id}' already exists.")
-        conn.execute(
-            "INSERT INTO staff (id, user_id, name, email, phone) VALUES (?,?,?,?,?)",
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO staff (id, user_id, name, email, phone) VALUES (%s,%s,%s,%s,%s)",
             (staff_id, current["sub"], name, email, phone)
         )
         conn.commit()
     finally:
         conn.close()
-
     return jsonify({"message": f"Staff '{name}' added.", "id": staff_id}), 201
 
 
@@ -335,22 +327,20 @@ def update_staff(staff_id):
     name     = sanitize(data.get("name"),  MAX_NAME_LEN,  "name")
     email    = sanitize(data.get("email"), MAX_EMAIL_LEN, "email")
     phone    = sanitize(data.get("phone"), MAX_PHONE_LEN, "phone")
-
     if not name:
         abort(400, description="'name' is required.")
-
     conn = get_db()
     try:
         if not staff_exists(conn, current["sub"], staff_id):
             abort(404)
-        conn.execute(
-            "UPDATE staff SET name=?, email=?, phone=? WHERE id=? AND user_id=?",
+        c = conn.cursor()
+        c.execute(
+            "UPDATE staff SET name=%s, email=%s, phone=%s WHERE id=%s AND user_id=%s",
             (name, email, phone, staff_id, current["sub"])
         )
         conn.commit()
     finally:
         conn.close()
-
     return jsonify({"message": f"Staff '{staff_id}' updated."})
 
 
@@ -358,33 +348,34 @@ def update_staff(staff_id):
 def remove_staff(staff_id):
     current  = get_current_user()
     staff_id = validate_staff_id(staff_id)
-
-    conn = get_db()
+    conn     = get_db()
     try:
         if not staff_exists(conn, current["sub"], staff_id):
             abort(404)
-        conn.execute("DELETE FROM attendance WHERE staff_id=? AND user_id=?", (staff_id, current["sub"]))
-        conn.execute("DELETE FROM staff WHERE id=? AND user_id=?", (staff_id, current["sub"]))
+        c = conn.cursor()
+        c.execute("DELETE FROM attendance WHERE staff_id=%s AND user_id=%s", (staff_id, current["sub"]))
+        c.execute("DELETE FROM staff WHERE id=%s AND user_id=%s", (staff_id, current["sub"]))
         conn.commit()
     finally:
         conn.close()
-
     return jsonify({"message": f"Staff '{staff_id}' removed."})
 
 
-# ===== Attendance Endpoints =================================================
+# ===== Attendance ===========================================================
 @app.route("/attendance", methods=["GET"])
 def list_attendance():
     current = get_current_user()
     conn    = get_db()
-    records = conn.execute(
+    c       = conn.cursor()
+    c.execute(
         "SELECT a.*, s.name FROM attendance a "
         "LEFT JOIN staff s ON a.staff_id=s.id AND s.user_id=a.user_id "
-        "WHERE a.user_id=? ORDER BY a.timestamp DESC",
+        "WHERE a.user_id=%s ORDER BY a.timestamp DESC",
         (current["sub"],)
-    ).fetchall()
+    )
+    records = c.fetchall()
     conn.close()
-    return jsonify(records)
+    return jsonify([dict(r) for r in records])
 
 
 @app.route("/attendance", methods=["POST"])
@@ -393,93 +384,76 @@ def record_attendance():
     data     = require_json()
     staff_id = validate_staff_id(data.get("staff_id"))
     action   = sanitize(data.get("action"), 20, "action")
-
     if action not in VALID_ACTIONS:
         abort(400, description=f"'action' must be one of: {', '.join(VALID_ACTIONS)}.")
-
     timestamp = datetime.utcnow().isoformat()
-
     conn = get_db()
     try:
         if not staff_exists(conn, current["sub"], staff_id):
             abort(404, description=f"Staff '{staff_id}' not found.")
-        conn.execute(
-            "INSERT INTO attendance (user_id, staff_id, action, timestamp) VALUES (?,?,?,?)",
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO attendance (user_id, staff_id, action, timestamp) VALUES (%s,%s,%s,%s)",
             (current["sub"], staff_id, action, timestamp)
         )
         conn.commit()
     finally:
         conn.close()
-
     return jsonify({"message": f"{staff_id} {action}", "timestamp": timestamp}), 201
 
 
-# ===== Superadmin Endpoints =================================================
-# Protected by a separate master password — set SUPERADMIN_SECRET env var.
-# Never exposed to regular users; all responses strip password/pin hashes.
-
-SUPERADMIN_SECRET = os.environ.get("SUPERADMIN_SECRET", "change-this-superadmin-secret")
-
-def require_superadmin():
-    auth = request.headers.get("X-Admin-Secret", "")
-    if not hmac.compare_digest(auth, SUPERADMIN_SECRET):
-        abort(403, description="Forbidden.")
-
+# ===== Superadmin ===========================================================
 @app.route("/superadmin/stats", methods=["GET"])
 def superadmin_stats():
     require_superadmin()
     conn = get_db()
-    total_users      = conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
-    total_staff      = conn.execute("SELECT COUNT(*) AS n FROM staff").fetchone()["n"]
-    total_attendance = conn.execute("SELECT COUNT(*) AS n FROM attendance").fetchone()["n"]
-    today            = datetime.utcnow().date().isoformat()
-    today_checkins   = conn.execute(
-        "SELECT COUNT(*) AS n FROM attendance WHERE action='check_in' AND timestamp LIKE ?",
-        (today + "%",)
-    ).fetchone()["n"]
-    newest_user = conn.execute(
-        "SELECT company, email, created_at FROM users ORDER BY created_at DESC LIMIT 1"
-    ).fetchone()
+    c    = conn.cursor()
+    c.execute("SELECT COUNT(*) AS n FROM users");        total_users      = c.fetchone()["n"]
+    c.execute("SELECT COUNT(*) AS n FROM staff");        total_staff      = c.fetchone()["n"]
+    c.execute("SELECT COUNT(*) AS n FROM attendance");   total_attendance = c.fetchone()["n"]
+    today = datetime.utcnow().date().isoformat()
+    c.execute("SELECT COUNT(*) AS n FROM attendance WHERE action='check_in' AND timestamp LIKE %s", (today + "%",))
+    today_checkins = c.fetchone()["n"]
+    c.execute("SELECT company, email, created_at FROM users ORDER BY created_at DESC LIMIT 1")
+    newest_user = c.fetchone()
     conn.close()
     return jsonify({
-        "total_users":      total_users,
-        "total_staff":      total_staff,
-        "total_attendance": total_attendance,
-        "today_checkins":   today_checkins,
-        "newest_user":      newest_user,
-        "server_time":      datetime.utcnow().isoformat()
+        "total_users": total_users, "total_staff": total_staff,
+        "total_attendance": total_attendance, "today_checkins": today_checkins,
+        "newest_user": dict(newest_user) if newest_user else None,
+        "server_time": datetime.utcnow().isoformat()
     })
 
 @app.route("/superadmin/users", methods=["GET"])
 def superadmin_users():
     require_superadmin()
-    conn  = get_db()
-    users = conn.execute(
-        """
+    conn = get_db()
+    c    = conn.cursor()
+    c.execute("""
         SELECT u.id, u.company, u.email, u.phone, u.created_at,
                COUNT(DISTINCT s.id)  AS staff_count,
                COUNT(DISTINCT a.id)  AS attendance_count
         FROM users u
         LEFT JOIN staff      s ON s.user_id = u.id
         LEFT JOIN attendance a ON a.user_id = u.id
-        GROUP BY u.id
-        ORDER BY u.created_at DESC
-        """
-    ).fetchall()
+        GROUP BY u.id ORDER BY u.created_at DESC
+    """)
+    users = c.fetchall()
     conn.close()
-    return jsonify(users)
+    return jsonify([dict(r) for r in users])
 
 @app.route("/superadmin/users/<int:user_id>", methods=["DELETE"])
 def superadmin_delete_user(user_id):
     require_superadmin()
     conn = get_db()
     try:
-        user = conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
-        if not user:
+        c = conn.cursor()
+        c.execute("SELECT id FROM users WHERE id=%s", (user_id,))
+        if not c.fetchone():
             abort(404)
-        conn.execute("DELETE FROM attendance WHERE user_id=?", (user_id,))
-        conn.execute("DELETE FROM staff      WHERE user_id=?", (user_id,))
-        conn.execute("DELETE FROM users      WHERE id=?",      (user_id,))
+        c.execute("DELETE FROM attendance WHERE user_id=%s", (user_id,))
+        c.execute("DELETE FROM staff      WHERE user_id=%s", (user_id,))
+        c.execute("DELETE FROM users      WHERE id=%s",      (user_id,))
         conn.commit()
     finally:
         conn.close()
