@@ -25,7 +25,7 @@ CORS(app,
 # LINE 24 — Replace YOUR-PASSWORD-HERE with your actual Supabase password
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql://postgres:#blueysplash001@db.axqlgpdincfxbiagzjws.supabase.co:5432/postgres"
+    "postgresql://postgres.axqlgpdincfxbiagzjws:#blueysplash001@aws-0-eu-west-1.pooler.supabase.com:5432/postgres"
 )
 
 JWT_SECRET        = os.environ.get("JWT_SECRET",        "change-me-in-production-use-a-long-random-string")
